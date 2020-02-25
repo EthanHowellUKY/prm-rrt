@@ -2,3 +2,6 @@ name = "your_group_name"
 uuid = "bae4b790-8e73-4d40-9661-a97cd0c6692b"
 authors = ["Benton Clark <brc192@gmail.com>"]
 version = "0.1.0"
+
+[deps]
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
