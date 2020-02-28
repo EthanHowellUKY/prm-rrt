@@ -32,6 +32,7 @@ function generate_graph(n::Int64,
             # If we find a non-colliding point, add it
             V[i,:] = p
         end
+        i+=1
     end
 
     # Once we have n points, we need to connect the k nearest
