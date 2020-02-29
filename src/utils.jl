@@ -1,4 +1,5 @@
 using LinearAlgebra
+using Distributions
 
 macro c_assert(boolean)
     message = string("Assertion: ", boolean, " failed")
@@ -47,6 +48,17 @@ end
 function check_state_collision(w::World, hm::HomogeneousMatrix)::Bool
     s = hmatrix_to_sphere(hm)
     check_state_collision(w, s)
+end
+
+function check_state_collision(w::World, pt::Array{Float64,1})::Bool
+    s = point_to_sphere(pt)
+    check_state_collision(w, s)
+end
+
+function check_state_collision(pt1::Array{Float64,1}, pt2::Array{Float64,1})::Bool
+    s1 = point_to_sphere(pt1)
+    s2 = point_to_sphere(pt2)
+    check_collision(s1, s2)
 end
 
 function check_state_collision(w::World, s::Sphere)::Bool
@@ -119,9 +131,33 @@ function hmatrix_to_sphere(m::HomogeneousMatrix)::Sphere
     return Sphere(m[1:3,4],1)
 end
 
+function point_to_sphere(pt::Array{Float64,1})::Sphere
+    return Sphere(pt,1)
+end
+
 function pprint_matrix(m::Array{T,2}) where {T}
     rows, _ = size(m)
     for i=1:rows
         println(m[i,:])
     end
+end
+
+function dist(n::Array{Float64,1}}, p::Array{Float64,1})::Float64
+    return sqrt( (n[1] - p[1])^2 + (n[2] - p[2])^2 + (n[3] - p[3])^2 )
+end
+
+function steer(p_rand::Array{Float64,1}, p_n::Array{Float64,1}, val::Float64, eps::Int64)::Array{Float64,1}
+    p_new::Array{Float64,1}
+
+    if val >= eps
+        for ii = 1:length(p_rand)
+            push!(p_new, p_n[ii] + (p_rand[ii]-p_n[ii])/dist(p_rand, p_n));
+        end
+    else
+        for ii = 1:length(p_rand)
+            push!(p_new, p_rand[ii]);
+        end
+    end
+
+    return p_new
 end
