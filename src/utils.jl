@@ -65,6 +65,31 @@ function check_state_collision(w::World, s::Sphere)::Bool
     return false
 end
 
+function check_path_collision(w::World,
+                              a::Array{Float64,1},
+                              b::Array{Float64,1})::Bool
+    # Parameterize our line as a + tx, where x = b - a s.t.
+    # when t = 1, a + tx = b
+    x = b - a
+    # Take L2 norm of x. This is distance of the line between
+    # the two points, and should tell us roughly how many points
+    # to sample along the line. Since our radius is 1, we'll check
+    # the points at each radius length, or 2*r*round(||x||)
+    frac = ceil(l2_norm(x)) * 2
+
+    i = 0.0
+    while i <= 1.0
+        current_point = a + x * i
+        s = Sphere(current_point,1)
+        if check_state_collision(w,s)
+            return true
+        end
+        i += 1 / frac
+    end
+
+    return false
+end
+
 function check_collision(a::Sphere, b::Sphere)::Bool
     d = a.p - b.p
     dp = dot(d, d)
@@ -115,8 +140,16 @@ function check_collision(a::Sphere, b::Cylinder)::Bool
     end
 end
 
+function hmatrix_get_d(m::HomogeneousMatrix)::Array{Float64,1}
+    return m[1:3,4]
+end
+
 function hmatrix_to_sphere(m::HomogeneousMatrix)::Sphere
-    return Sphere(m[1:3,4],1)
+    return Sphere(hmatrix_get_d(m),1)
+end
+
+function l2_norm(v::Array{Float64,1})
+    sqrt(dot(v,v))
 end
 
 function pprint_matrix(m::Array{T,2}) where {T}
