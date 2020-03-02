@@ -44,20 +44,61 @@ function generate_graph(n::Int64,
         if !check_state_collision(w, s)
             # If we find a non-colliding point, add it
             V[i,:] = p
+            i += 1
         end
-        i+=1
     end
 
+    # Once we find our other points, add our start and goal states
+    # so that paths can be generated for them
+    insert!(V, 1, hmatrix_get_d(s))
+    push!(V, hmatrix_get_d(g))
+
     # Once we have n points, we need to connect the k nearest
-    # neighboring points
-    for j=1:n
-        closest_neighbors = zeros(k)
-        idxs = Int64[]
+    # neighboring points. These edges will be E
+    E = reshape(collect(1:(n+2)*10),(n+2,10))
+    closest_neighbors = zeros(k)
+
+    for j=1:n+2
         for ci = eachindex(closest_neighbors)
             closest_neighbors[ci] = Inf
-            push!(idxs, -1)
+            E[j,ci] = -1 # Sentinel value
+        end
+
+        current_point = V[j,:]
+
+        # Now look through all points where j != h
+        # If its closer than what we've seen so far, add it
+        for h=1:n+2
+            if h == j
+                continue
+            end
+
+            test_point = V[h,:]
+            diff = test_point - current_point
+            dist = dot(diff, diff)
+            for (idx, val) in enumerate(closest_neighbors)
+                if dist < val
+                    # If this is a close point, then do
+                    # the collision check since it is expensive
+                    if !check_path_collision(w,
+                                             current_point,
+                                             test_point)
+                        insert!(closest_neighbors, idx, dist)
+                        E[j,idx] = h
+                        # We want to keep our list size k, so pop
+                        # off the last value in the list since it's
+                        # not within the k closest neighbors
+                        pop!(closest_neighbors)
+                    end
+
+                    break
+                end
+            end
         end
     end
+
+    # Return the generated graph with points
+    Graph(V,E)
 end
 
 function PRM(s, g, O)
@@ -88,9 +129,12 @@ function RRT(s::HomogeneousMatrix, g::HomogeneousMatrix, O::Array{Float64,2})::T
     # g -> 4x4 HomogeneousMatrix representing goal state
     # O -> Nx5 Matrix representing objects in the space
 
-    x_max = 0;
-    y_max = 0;
-    z_max = 0;
+    origin = [0,0,0];
+    unit_vec = [1,1,1];
+
+    x_max = 1000;
+    y_max = 1000;
+    z_max = 1000;
     eps = 20;
     pt_fnd = false;
     numNodes = 4000;
@@ -119,12 +163,18 @@ function RRT(s::HomogeneousMatrix, g::HomogeneousMatrix, O::Array{Float64,2})::T
     init_coords = s[1:3,4]; # Coordinates of start state
     goal_coords = g[1:3,4]; # Coordinates of goal state
 
+    Rs = s[1:3,1:3];
+    Rg = g[1:3,1:3];
+
     init_state = Path(init_coords, 0, 0);
     nodes = [init_state];
 
-    x_max = maximum(Graph.V[:,1]); ################# Note sure if this is where the domain will be defined
-    y_max = maximum(Graph.V[:,2]); ################# Used as placeholder for time being
-    z_max = maximum(Graph.V[:,3]); #################
+    #=
+    graph = generate_graph(1000, 10, s, g, world);
+    x_max = maximum(graph.V[:,1]);
+    y_max = maximum(graph.V[:,2]);
+    z_max = maximum(graph.V[:,3]);
+    =#
 
     for ii = 1:numNodes
 
@@ -156,14 +206,14 @@ function RRT(s::HomogeneousMatrix, g::HomogeneousMatrix, O::Array{Float64,2})::T
         p_near = nodes[idx];                                            # Get the coordinates of the node closest to the randomly sampled point
 
         p_new = Point(steer(p_rand, p_near.coords, val, eps), 0, 0);    # Move in the direction of the nearest point
-        if !check_state_collision(p_near.coords, p_new.coords)
+        if !check_state_collision(p_near.coords, p_new.coords, O)
             p_new.cost = dist(p_new.coords, p_near.coords) + p_near.cost;
 
             p_nearest = [Point([0,0,0],0,0)];
             r = 60;
 
             for jj = 1:length(nodes)
-                if !check_state_collision(nodes[jj].coords, p_new.coords) && dist(nodes[jj].coords, p_new.coords) <= r
+                if !check_state_collision(nodes[jj].coords, p_new.coords, O) && dist(nodes[jj].coords, p_new.coords) <= r
                     push!(p_nearest, nodes[jj]);
                 end
             end
@@ -174,7 +224,7 @@ function RRT(s::HomogeneousMatrix, g::HomogeneousMatrix, O::Array{Float64,2})::T
             for jj = 1:length(p_nearest)
                 p_curr = p_nearest[jj];
                 c_curr = p_curr.cost + dist(p_curr.coords, p_new.coords)
-                if !check_state_collision(p_curr.coords, p_new.coords) && c_curr < c_min
+                if !check_state_collision(p_curr.coords, p_new.coords, O) && c_curr < c_min
                     p_min = p_curr;
                     c_min = c_curr;
                 end
@@ -198,14 +248,15 @@ function RRT(s::HomogeneousMatrix, g::HomogeneousMatrix, O::Array{Float64,2})::T
 
     (val, idx) = findmin(D);
     p_final = nodes(idx);
-    goal_state = Point(goal_coords, 0, idx);
+    goal_state = Path(goal_coords, 0, idx);
+    p_end = goal_state;
     push!(nodes, goal_state);
 
-    final_path = zeros(length(nodes),3);
-    for jj = 1:length(nodes)
-        for kk = 1:3
-            final_path[jj,kk] = nodes[jj].coords[kk];
-        end
+    final_path = [p_end];
+
+    while p_end.parent != 0
+        start = p_end.parent;
+        prepend!(final_path, nodes[start]);
     end
 
     return tuple(final_path)

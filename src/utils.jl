@@ -77,6 +77,34 @@ function check_state_collision(w::World, s::Sphere)::Bool
     return false
 end
 
+function check_state_collision(pt1::Array{Float64,1}, pt2::Array{Float64,1}, O::Array{Float64, 2})::Bool
+    numO = length(O[:,1]);
+
+    s1 = point_to_sphere(pt1);
+    s2 = point_to_sphere(pt2);
+
+    for ii = 1:numO
+        if O[ii,5] == 0
+            obj = Sphere(O[ii,1:3], O[ii,4]);
+        else
+            obj = Cylinder(O[ii,1:3], O[ii,4]);
+        end
+
+        s1_coll_obj = check_collision(s1, obj);
+        s2_coll_obj = check_collision(s2, obj);
+        s1_coll_s2 = check_collision(s1,s2);
+
+        if s1_coll_obj || s2_coll_obj || s1_coll_s2
+            retval = true;
+        else
+            retval = false;
+            break
+        end
+    end
+
+    return retval
+end
+
 function check_collision(a::Sphere, b::Sphere)::Bool
     d = a.p - b.p
     dp = dot(d, d)
